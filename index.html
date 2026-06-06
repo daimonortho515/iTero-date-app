@@ -124,7 +124,7 @@ async function sbFetch(path, method, body) {
   } catch(e) { console.warn('SB:', e.message); return null; }
 }
 
-function jp(v,d) { try { return JSON.parse(v)||d; } catch { return d; } }
+function jp(v,d) { if(Array.isArray(v)) return v; try { return JSON.parse(v)||d; } catch { return d; } }
 function today() { return new Date().toISOString().slice(0,10); }
 function ym() { return new Date().toISOString().slice(0,7); }
 
@@ -298,7 +298,7 @@ function MikTab({db,setDb,patients,setPatients,saveLocal,setTab,setInputInit,set
     setMsg({info:'保存中...'});
     const body={date:today(),patient_id:pid,patient_name:name,staff,cats:'[]',techs:'[]',old_flag:false,note:'未記入',setdate:null,chk_seimitsu:false,chk_saishuu:false,chk_isogu:false,chk_mikiroku:true,chk_suzuki:false,chk_mokei:false,chk_tochaku:false,chk_kensashin:false,chk_orthocom:false,chk_backup:false,chk_datachecked:false};
     const r=await sbFetch('records','POST',body);
-    const nr=mapRec(r?r[0]:{...body,id:Date.now(),tc:{},cats:[],techs:[]});
+    const nr=mapRec(r?r[0]:{...body,id:Date.now(),tc:{},cats:JSON.parse(body.cats||'[]'),techs:JSON.parse(body.techs||'[]')});
     if(!patients[pid]){await sbFetch('patients','POST',{patient_id:pid,patient_name:name});setPatients(p=>({...p,[pid]:name}));}
     const n=[nr,...db].sort(function(a,b){ if(!a.date&&!b.date)return 0; if(!a.date)return 1; if(!b.date)return -1; return b.date.localeCompare(a.date); }); setDb(n);saveLocal(n);
     setMsg({ok:'登録しました！'});setPid('');setName('');setStaff('');setAtag('');
@@ -900,9 +900,9 @@ function DCTab({db,updRec,setDb,saveLocal}){
                       : <span style={{fontSize:14}}>{r.chk_datachecked?'✅':'⬜'}</span>
                     }
                   </td>
-                  <td style={{padding:'6px 8px',textAlign:'center'}}>
+                  {adminMode&&<td style={{padding:'6px 8px',textAlign:'center'}}>
                     <button className="btn btn-d" onClick={()=>{if(!confirm('削除しますか？'))return;const n=db.filter(x=>x.id!==r.id);setDb(n);saveLocal(n);sbFetch('records?id=eq.'+r.id,'DELETE').catch(()=>{});}}>削除</button>
-                  </td>
+                  </td>}
                 </tr>;
               });
             })
