@@ -158,7 +158,8 @@ function mapRec(r) {
     cats: jp(r.cats,[]), techs: jp(r.techs,[]), tc: jp(r.tech_checks||r.tc,{}),
     checks: { '精密検査':!!r.chk_seimitsu,'最終検査':!!r.chk_saishuu,'チェック鈴木':!!r.chk_suzuki,'検査送信':!!r.chk_kensashin,'orthocom':!!r.chk_orthocom,'backup':!!r.chk_backup },
     chk_ready: !!r.chk_ready,
-    chk_was_mik: !!r.chk_was_mik
+    chk_was_mik: !!r.chk_was_mik,
+    hidden: !!r.hidden
   };
 }
 
@@ -223,7 +224,12 @@ function EditBtn({r, db, setDb, saveLocal}){
 
 function DelBtn({id,db,setDb,saveLocal}){
   const r=db.find(x=>x.id===id);
-  const del=()=>{ if(!confirm((r?r.patient_name+'のデータを':'このデータを')+'削除しますか？\n\nこの操作は取り消せません。'))return; const n=db.filter(x=>x.id!==id); setDb(n);saveLocal(n); sbFetch('records?id=eq.'+id,'DELETE'); };
+  const del=()=>{
+    if(!confirm((r?r.patient_name+'のデータを':'このデータを')+'記録管理から削除しますか？\n\n確認タブには残ります。'))return;
+    const n=db.map(x=>x.id===id?{...x,hidden:true}:x);
+    setDb(n);saveLocal(n);
+    sbFetch('records?id=eq.'+id,'PATCH',{hidden:true}).catch(()=>{});
+  };
   return <button className="btn btn-d" onClick={del}>削除</button>;
 }
 
@@ -515,7 +521,7 @@ function RecTab({db,updRec,setDb,saveLocal}){
   const togF=k=>setF(f=>({...f,[k]:!f[k]}));
 
   const matchSub=r=>{
-    if(r.chk_mikiroku||isRecordDone(r))return false;
+    if(r.chk_mikiroku||isRecordDone(r)||r.hidden)return false;
     if(sub==='すべて') return true;
     if(sub==='技工物(院外)') return r.cats.includes('技工物')&&r.techs.some(t=>!INHOUSE.includes(t));
     if(sub==='技工物(院内)') return r.cats.includes('技工物')&&r.techs.some(t=>INHOUSE.includes(t))&&!r.techs.some(t=>!INHOUSE.includes(t));
@@ -867,8 +873,8 @@ function DoneTab({db,setDb,saveLocal}){
     if(sub==='追加アライナー')return r.cats.includes('追加アライナー');
     return true;
   };
-  const list=db.filter(r=>!r.chk_mikiroku&&isRecordDone(r)&&matchDone(r)&&(!q||r.patient_name.toLowerCase().includes(q.toLowerCase())||r.patient_id.includes(q)));
-  const del=id=>{ const r=db.find(x=>x.id===id);if(!confirm((r?r.patient_name+'のデータを':'このデータを')+'削除しますか？\n\nこの操作は取り消せません。'))return;const n=db.filter(x=>x.id!==id);setDb(n);saveLocal(n);sbFetch('records?id=eq.'+id,'DELETE'); };
+  const list=db.filter(r=>!r.chk_mikiroku&&!r.hidden&&isRecordDone(r)&&matchDone(r)&&(!q||r.patient_name.toLowerCase().includes(q.toLowerCase())||r.patient_id.includes(q)));
+  const del=id=>{ const r=db.find(x=>x.id===id);if(!confirm((r?r.patient_name+'のデータを':'このデータを')+'記録管理から削除しますか？\n\n確認タブには残ります。'))return;const n=db.map(x=>x.id===id?{...x,hidden:true}:x);setDb(n);saveLocal(n);sbFetch('records?id=eq.'+id,'PATCH',{hidden:true}).catch(()=>{}); };
   return <div>
     <div className="stabs">{DONE_SUBS.map(s=><button key={s} className={"stab"+(sub===s?' on':'')} onClick={()=>setSub(s)}>{s}</button>)}</div>
     <input value={q} onChange={e=>setQ(e.target.value)} placeholder="患者名・IDで検索..." style={{width:'100%',fontSize:13,padding:'8px 10px',border:'1px solid var(--b2)',borderRadius:'var(--rs)',background:'var(--surface)',color:'var(--text)',outline:'none',marginBottom:10}}/>
