@@ -294,7 +294,7 @@ function MikTab({db,setDb,patients,setPatients,saveLocal,setTab,setInputInit,set
   const save=async()=>{
     if(!pid||!name){setMsg({err:'IDと名前は必須です'});return;}
     if(!sei&&!sai&&cats.length===0){setMsg({err:'検査（精密・最終）またはデータの種類を最低1つ選択してください'});return;}
-    if(techs.length>0&&!cats.includes('技工物')){setMsg({err:'技工物内容を選択した場合は種別「技工物」もチェックしてください'});return;}
+
     setMsg({info:'保存中...'});
     const body={date:today(),patient_id:pid,patient_name:name,staff,cats:'[]',techs:'[]',old_flag:false,note:'未記入',setdate:null,chk_seimitsu:false,chk_saishuu:false,chk_isogu:false,chk_mikiroku:true,chk_suzuki:false,chk_mokei:false,chk_tochaku:false,chk_kensashin:false,chk_orthocom:false,chk_backup:false,chk_datachecked:false};
     const r=await sbFetch('records','POST',body);
@@ -383,6 +383,16 @@ function InpTab({db,setDb,patients,setPatients,saveLocal,initData,fromMik,setFro
   };
 
   const tog=(arr,set,v)=>set(a=>a.includes(v)?a.filter(x=>x!==v):[...a,v]);
+  // 技工物内容チップのトグル（自動で種別「技工物」も追加）
+  const togTech=(v)=>{
+    setTechs(a=>{
+      const next=a.includes(v)?a.filter(x=>x!==v):[...a,v];
+      // 技工物内容が1つでもあれば種別「技工物」を自動追加
+      if(next.length>0) setCats(c=>c.includes('技工物')?c:[...c,'技工物']);
+      else setCats(c=>c.filter(x=>x!=='技工物'));
+      return next;
+    });
+  };
 
   const save=async()=>{
     if(!pid||!name){setMsg({err:'IDと名前は必須です'});return;}
@@ -421,7 +431,7 @@ function InpTab({db,setDb,patients,setPatients,saveLocal,initData,fromMik,setFro
     <div className="card">
       <div className="ct">データの種類</div>
       <div className="f"><label>種別（複数選択可）</label><div className="chips">{CATS.map(c=><span key={c} className={"chip"+(cats.includes(c)?' on':'')} onClick={()=>tog(cats,setCats,c)}>{c}</span>)}</div></div>
-      <div className="f"><label>技工物内容（複数選択可）</label><div className="chips">{TECHS.map(t=><span key={t} className={"chip"+(techs.includes(t)?' on':'')} onClick={()=>tog(techs,setTechs,t)}>{t}</span>)}</div></div>
+      <div className="f"><label>技工物内容（複数選択可）</label><div className="chips">{TECHS.map(t=><span key={t} className={"chip"+(techs.includes(t)?' on':'')} onClick={()=>togTech(t)}>{t}</span>)}</div></div>
       <div className="chkrow" style={{marginBottom:10}}>
         <label className="ci"><input type="checkbox" checked={old} onChange={e=>setOld(e.target.checked)}/> 旧</label>
         <label className="ci iso"><input type="checkbox" checked={iso} onChange={e=>setIso(e.target.checked)}/> 🚨 急ぎ</label>
