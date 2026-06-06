@@ -222,7 +222,8 @@ function EditBtn({r, db, setDb, saveLocal}){
 }
 
 function DelBtn({id,db,setDb,saveLocal}){
-  const del=()=>{ if(!confirm('削除しますか？'))return; const n=db.filter(r=>r.id!==id); setDb(n);saveLocal(n); sbFetch('records?id=eq.'+id,'DELETE'); };
+  const r=db.find(x=>x.id===id);
+  const del=()=>{ if(!confirm((r?r.patient_name+'のデータを':'このデータを')+'削除しますか？\n\nこの操作は取り消せません。'))return; const n=db.filter(x=>x.id!==id); setDb(n);saveLocal(n); sbFetch('records?id=eq.'+id,'DELETE'); };
   return <button className="btn btn-d" onClick={del}>削除</button>;
 }
 
@@ -236,17 +237,49 @@ function App(){
   const [inputInit,setInputInit]=useState(null);
   const [fromMik,setFromMik]=useState(false);
   const [showReport,setShowReport]=useState(false);
+  const [notice,setNotice]=useState('');
+  const [showNoticeEdit,setShowNoticeEdit]=useState(false);
+  const [noticePw,setNoticePw]=useState('');
+  const [noticeInput,setNoticeInput]=useState('');
+  const [noticeEditMode,setNoticeEditMode]=useState(false);
+  const NOTICE_PW='daimon1020';
+
+  useEffect(()=>{
+    const saved=localStorage.getItem('itero_notice');
+    if(saved) setNotice(saved);
+    sbFetch('app_settings?key=eq.notice&limit=1').then(r=>{
+      if(r&&r.length) setNotice(r[0].value||'');
+    }).catch(()=>{});
+  },[]);
+
+  const saveNotice=async()=>{
+    localStorage.setItem('itero_notice',noticeInput);
+    setNotice(noticeInput);
+    await sbFetch('app_settings?key=eq.notice','PATCH',{value:noticeInput}).catch(()=>{});
+    setNoticeEditMode(false);setShowNoticeEdit(false);setNoticePw('');
+  };
 
   const saveLocal=(d)=>{ try{localStorage.setItem('itero_db',JSON.stringify(d));}catch(e){} };
 
   const loadData=useCallback(async()=>{
     try{ const lp=localStorage.getItem('itero_pts'); if(lp)setPatients(JSON.parse(lp)); const ld=localStorage.getItem('itero_db'); if(ld){setDb(JSON.parse(ld).map(mapRec));setLoading(false);} }catch(e){}
     try{
+      console.log('Loading from Supabase...');
       let all=[],off=0;
       while(true){ const r=await sbFetch('patients?limit=1000&offset='+off); if(!r||!r.length)break; all=all.concat(r); if(r.length<1000)break; off+=1000; }
       if(all.length){ const pm={}; all.forEach(p=>pm[p.patient_id]=p.patient_name); setPatients(pm); localStorage.setItem('itero_pts',JSON.stringify(pm)); }
-      const recs=await sbFetch('records?order=created_at.desc&limit=500');
-      if(recs){ const m=recs.map(mapRec).sort((a,b)=>{ if(!a.date&&!b.date)return 0; if(!a.date)return 1; if(!b.date)return -1; return b.date.localeCompare(a.date); }); setDb(m); localStorage.setItem('itero_db',JSON.stringify(recs)); }
+      // 全件取得（ページネーション）
+      let recs=[], recOff=0;
+      while(true){
+        const batch=await sbFetch('records?order=id.desc&limit=1000&offset='+recOff);
+        if(!batch||!batch.length) break;
+        recs=recs.concat(batch);
+        if(batch.length<1000) break;
+        recOff+=1000;
+      }
+      const recsResult=recs;
+      console.log('Records fetched:', recsResult.length);
+      if(recsResult.length){ const m=recsResult.map(mapRec).sort((a,b)=>{ if(!a.date&&!b.date)return 0; if(!a.date)return 1; if(!b.date)return -1; return b.date.localeCompare(a.date); }); setDb(m); localStorage.setItem('itero_db',JSON.stringify(recsResult)); }
     }catch(e){}
     setLoading(false);
   },[]);
@@ -262,6 +295,28 @@ function App(){
     <div id="root">
       {loading&&<div style={{position:'fixed',inset:0,background:'rgba(245,244,240,.92)',display:'flex',alignItems:'center',justifyContent:'center',zIndex:999,fontSize:14,color:'var(--t2)'}}>読み込み中...</div>}
       <div className="topbar"><h1>🦷 iTero管理</h1><button onClick={()=>setShowReport(true)} style={{marginLeft:'auto',fontSize:12,padding:'5px 10px',borderRadius:'var(--rs)',border:'1px solid var(--b2)',background:'transparent',color:'var(--t2)',cursor:'pointer'}}>🐛 報告</button><button className="sync-btn" style={{marginLeft:6}} onClick={syncAll}>{syncing?'同期中...':'同期'}</button></div>
+      {notice&&!noticeEditMode&&<div style={{background:'#fffbeb',borderBottom:'1px solid #fde68a',padding:'6px 14px',display:'flex',alignItems:'center',gap:8,flexShrink:0}}>
+        <span style={{fontSize:11,fontWeight:700,color:'var(--amt)'}}>📢</span>
+        <span style={{fontSize:12,color:'var(--amt)',flex:1}}>{notice}</span>
+        <button onClick={()=>{setNoticeInput(notice);setShowNoticeEdit(v=>!v);}} style={{fontSize:10,padding:'2px 8px',border:'1px solid #fde68a',borderRadius:10,background:'transparent',color:'var(--amt)',cursor:'pointer'}}>編集</button>
+      </div>}
+      {!notice&&<div style={{background:'var(--s2)',borderBottom:'1px solid var(--border)',padding:'4px 14px',flexShrink:0}}>
+        <button onClick={()=>{setNoticeInput('');setShowNoticeEdit(v=>!v);}} style={{fontSize:11,padding:'2px 8px',border:'1px solid var(--b2)',borderRadius:10,background:'transparent',color:'var(--t3)',cursor:'pointer'}}>📢 連絡事項を追加</button>
+      </div>}
+      {showNoticeEdit&&<div style={{background:'var(--surface)',borderBottom:'1px solid var(--border)',padding:'8px 14px',flexShrink:0}}>
+        {!noticeEditMode
+          ?<div style={{display:'flex',gap:6,alignItems:'center'}}>
+            <input type="password" value={noticePw} onChange={e=>setNoticePw(e.target.value)} onKeyDown={e=>e.key==='Enter'&&noticePw===NOTICE_PW&&(setNoticeEditMode(true))} placeholder="管理者PW" style={{fontSize:13,padding:'5px 8px',border:'1px solid var(--b2)',borderRadius:'var(--rs)',outline:'none',width:130}}/>
+            <button className="btn btn-p" style={{fontSize:12,padding:'5px 12px'}} onClick={()=>{if(noticePw===NOTICE_PW)setNoticeEditMode(true);else alert('パスワードが違います');}}>確認</button>
+            <button className="btn" style={{fontSize:12,padding:'5px 10px'}} onClick={()=>{setShowNoticeEdit(false);setNoticePw('');}}>キャンセル</button>
+          </div>
+          :<div style={{display:'flex',gap:6,alignItems:'center'}}>
+            <input value={noticeInput} onChange={e=>setNoticeInput(e.target.value)} placeholder="連絡事項を入力..." style={{flex:1,fontSize:13,padding:'5px 8px',border:'1px solid var(--b2)',borderRadius:'var(--rs)',outline:'none',background:'var(--s2)'}}/>
+            <button className="btn btn-p" style={{fontSize:12,padding:'5px 12px'}} onClick={saveNotice}>保存</button>
+            <button className="btn btn-d" style={{fontSize:12,padding:'5px 10px'}} onClick={()=>{setNoticeInput('');saveNotice();}}>削除</button>
+          </div>
+        }
+      </div>}
       <div className="main-tabs">{TABS.map(t=><button key={t.id} className={(t.cls||'')+(tab===t.id?' on':'')} onClick={()=>setTab(t.id)}>{t.label}</button>)}</div>
       {showReport&&<ReportModal onClose={()=>setShowReport(false)}/>}
       <div className="content">
@@ -813,7 +868,7 @@ function DoneTab({db,setDb,saveLocal}){
     return true;
   };
   const list=db.filter(r=>!r.chk_mikiroku&&isRecordDone(r)&&matchDone(r)&&(!q||r.patient_name.toLowerCase().includes(q.toLowerCase())||r.patient_id.includes(q)));
-  const del=id=>{ if(!confirm('削除しますか？'))return;const n=db.filter(r=>r.id!==id);setDb(n);saveLocal(n);sbFetch('records?id=eq.'+id,'DELETE'); };
+  const del=id=>{ const r=db.find(x=>x.id===id);if(!confirm((r?r.patient_name+'のデータを':'このデータを')+'削除しますか？\n\nこの操作は取り消せません。'))return;const n=db.filter(x=>x.id!==id);setDb(n);saveLocal(n);sbFetch('records?id=eq.'+id,'DELETE'); };
   return <div>
     <div className="stabs">{DONE_SUBS.map(s=><button key={s} className={"stab"+(sub===s?' on':'')} onClick={()=>setSub(s)}>{s}</button>)}</div>
     <input value={q} onChange={e=>setQ(e.target.value)} placeholder="患者名・IDで検索..." style={{width:'100%',fontSize:13,padding:'8px 10px',border:'1px solid var(--b2)',borderRadius:'var(--rs)',background:'var(--surface)',color:'var(--text)',outline:'none',marginBottom:10}}/>
@@ -925,7 +980,7 @@ function DCTab({db,updRec,setDb,saveLocal}){
                     }
                   </td>
                   {adminMode&&<td style={{padding:'6px 8px',textAlign:'center'}}>
-                    <button className="btn btn-d" onClick={()=>{if(!confirm('削除しますか？'))return;const n=db.filter(x=>x.id!==r.id);setDb(n);saveLocal(n);sbFetch('records?id=eq.'+r.id,'DELETE').catch(()=>{});}}>削除</button>
+                    <button className="btn btn-d" onClick={()=>{if(!confirm(r.patient_name+'のデータを削除しますか？\n\nこの操作は取り消せません。'))return;const n=db.filter(x=>x.id!==r.id);setDb(n);saveLocal(n);sbFetch('records?id=eq.'+r.id,'DELETE').catch(()=>{});}}>削除</button>
                   </td>}
                 </tr>;
               });
@@ -1111,8 +1166,10 @@ function ReportModal({onClose}){
         <button onClick={onClose} style={{fontSize:18,background:'none',border:'none',cursor:'pointer',color:'var(--t2)'}}>✕</button>
       </div>
       <div className="f" style={{marginBottom:10}}>
-        <label>名前（任意）</label>
-        <input value={reporter} onChange={e=>setReporter(e.target.value)} placeholder="例: 鈴木"/>
+        <label>名前</label>
+        <select value={reporter} onChange={e=>setReporter(e.target.value)} style={{fontSize:14,borderRadius:'var(--rs)',border:'1px solid var(--b2)',padding:'9px 10px',background:'var(--s2)',color:'var(--text)',outline:'none',WebkitAppearance:'none'}}>
+          <option value="">選択</option>{STAFF.map(s=><option key={s}>{s}</option>)}
+        </select>
       </div>
       <div className="f" style={{marginBottom:10}}>
         <label>内容</label>
