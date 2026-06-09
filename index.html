@@ -328,7 +328,7 @@ function App(){
       {showReport&&<ReportModal onClose={()=>setShowReport(false)}/>}
       <div className="content">
         {tab==='mik'  && <MikTab db={db} setDb={setDb} patients={patients} setPatients={setPatients} saveLocal={saveLocal} setTab={setTab} setInputInit={setInputInit} setFromMik={setFromMik}/>}
-        {tab==='iteroweek'&&<IteroWeekTab db={db} updRec={updRec}/>}
+        {tab==='iteroweek'&&<IteroWeekTab db={db} updRec={updRec} setDb={setDb} saveLocal={saveLocal}/>}
         {tab==='today'&& <TodayTab db={db} updRec={updRec}/>}
         {tab==='inp'  && <InpTab db={db} setDb={setDb} patients={patients} setPatients={setPatients} saveLocal={saveLocal} initData={inputInit} fromMik={fromMik} setFromMik={setFromMik}/>}
         {tab==='rec'  && <RecTab db={db} updRec={updRec} setDb={setDb} saveLocal={saveLocal}/>}
@@ -460,6 +460,7 @@ function InpTab({db,setDb,patients,setPatients,saveLocal,initData,fromMik,setFro
   const save=async()=>{
     if(!pid||!name){setMsg({err:'IDと名前は必須です'});return;}
     if(cats.length===0&&!sei&&!sai){setMsg({err:'種別または検査を1つ以上選択してください'});return;}
+    if(cats.includes('技工物')&&techs.length===0){setMsg({err:'技工物を選択した場合は技工物内容を1つ以上選択してください'});return;}
     setMsg({info:'保存中...'});
     const wasMik=initData&&initData.wasMikiroku;
     const body={date,patient_id:pid,patient_name:name,staff,cats:JSON.stringify(cats),techs:JSON.stringify(techs),old_flag:old,note,setdate:null,chk_seimitsu:sei,chk_saishuu:sai,chk_isogu:iso,chk_mikiroku:false,chk_datachecked:false,chk_suzuki:false,chk_mokei:false,chk_tochaku:false,chk_kensashin:false,chk_orthocom:false,chk_backup:false,chk_was_mik:!!wasMik};
@@ -1010,7 +1011,7 @@ const IWEEK_SECTIONS = [
 ];
 const CC_MAP = {'精密検査':'#3b82f6','最終検査':'#0d9488','技工物':'#ea580c','追加アライナー':'#7c3aed','再iTero':'#d97706'};
 
-function IteroWeekGrid({list, updReady, dayLabel}){
+function IteroWeekGrid({list, updReady, dayLabel, db, setDb, saveLocal}){
   return <div>
     {IWEEK_SECTIONS.map(sec=>{
       const items = list.filter(sec.match);
@@ -1031,6 +1032,7 @@ function IteroWeekGrid({list, updReady, dayLabel}){
                   <div style={{marginTop:2}}><StaffBadge staff={r.staff}/></div>
                   {r.techs&&r.techs.length>0&&<div style={{fontSize:10,color:'var(--t2)',marginTop:2}}>{r.techs.join('・')}</div>}
                   <div style={{fontSize:10,color:'var(--accent)',fontWeight:600,marginTop:3}}>📅 {dayLabel(r.date)}</div>
+                  <div style={{marginTop:4}}><EditBtn r={r} db={db} setDb={setDb} saveLocal={saveLocal}/></div>
                 </div>
                 <label style={{display:'flex',flexDirection:'column',alignItems:'center',gap:2,cursor:'pointer',flexShrink:0}}>
                   <input type="checkbox" checked={!!checked} onChange={e=>updReady(r.id,e.target.checked)} style={{width:17,height:17,accentColor:'var(--green)',cursor:'pointer'}}/>
@@ -1046,37 +1048,47 @@ function IteroWeekGrid({list, updReady, dayLabel}){
 }
 
 // ---- IteroWeekTab ----
-function IteroWeekTab({db, updRec}){
+function IteroWeekTab({db, updRec, setDb, saveLocal}){
   const [selDate, setSelDate] = useState(today());
   const [filter, setFilter] = useState('today');
+  const [pick1, setPick1] = useState('');
+  const [pick2, setPick2] = useState('');
   const getTargetDates = () => {
-    const base = new Date(selDate);
-    const fmt = d => d.toISOString().slice(0,10);
-    const d1 = new Date(base); d1.setDate(base.getDate()-1);
-    const d2 = new Date(base); d2.setDate(base.getDate()-2);
-    if(filter==='today')     return [selDate];
-    if(filter==='yesterday') return [fmt(d1)];
-    if(filter==='before')    return [fmt(d2)];
-    return [selDate, fmt(d1), fmt(d2)];
+    if(filter==='today')  return [selDate];
+    if(filter==='pick1')  return pick1?[pick1]:[];
+    if(filter==='pick2')  return pick2?[pick2]:[];
+    // all: 今日＋選択した日付
+    const dates=[selDate];
+    if(pick1) dates.push(pick1);
+    if(pick2) dates.push(pick2);
+    return [...new Set(dates)];
   };
   const targets = getTargetDates();
   const list = db.filter(r=>!r.chk_mikiroku&&r.date&&targets.includes(r.date))
     .sort((a,b)=>{ if(a.date!==b.date)return b.date.localeCompare(a.date); return a.patient_name.localeCompare(b.patient_name); });
   const updReady = (id, val) => { updRec(id,{chk_ready:val}); sbFetch('records?id=eq.'+id,'PATCH',{chk_ready:val}); };
-  const FILTER_BTNS = [{k:'today',label:'今日'},{k:'yesterday',label:'前日'},{k:'before',label:'前々日'},{k:'all',label:'3日分'}];
-  const dayLabel = d => { const diff=Math.round((new Date(selDate)-new Date(d))/(1000*60*60*24)); if(diff===0)return '今日';if(diff===1)return '前日';if(diff===2)return '前々日';return d; };
+  const FILTER_BTNS = [{k:'today',label:'今日'},{k:'pick1',label:'日付1'},{k:'pick2',label:'日付2'},{k:'all',label:'3日分'}];
+  const dayLabel = d => { const diff=Math.round((new Date(selDate)-new Date(d))/(1000*60*60*24)); if(diff===0)return '今日';return d; };
   const CCOL2 = {'再iTero':'#d97706','追加アライナー':'#7c3aed'};
   return <div>
-    <div style={{display:'flex',gap:8,alignItems:'center',marginBottom:12,flexWrap:'wrap'}}>
-      <input type="date" value={selDate} onChange={e=>setSelDate(e.target.value)} style={{fontSize:13,padding:'7px 10px',border:'1px solid var(--b2)',borderRadius:'var(--rs)',background:'var(--surface)',color:'var(--text)',outline:'none'}}/>
-      <div className="fbtns" style={{margin:0}}>
-        {FILTER_BTNS.map(b=><button key={b.k} className={"fb"+(filter===b.k?' on':'')} style={filter===b.k?{background:'var(--accent)',color:'#fff',borderColor:'var(--accent)'}:{}} onClick={()=>setFilter(b.k)}>{b.label}</button>)}
+    <div style={{marginBottom:12}}>
+      <div style={{display:'flex',gap:8,alignItems:'center',marginBottom:8,flexWrap:'wrap'}}>
+        <span style={{fontSize:12,color:'var(--t2)'}}>今日:</span>
+        <input type="date" value={selDate} onChange={e=>setSelDate(e.target.value)} style={{fontSize:13,padding:'6px 10px',border:'1px solid var(--b2)',borderRadius:'var(--rs)',background:'var(--surface)',color:'var(--text)',outline:'none'}}/>
+        <button className={"fb"+(filter==='today'?' on':'')} style={filter==='today'?{background:'var(--accent)',color:'#fff',borderColor:'var(--accent)'}:{}} onClick={()=>setFilter('today')}>今日のみ</button>
+        <button className={"fb"+(filter==='all'?' on':'')} style={filter==='all'?{background:'var(--accent)',color:'#fff',borderColor:'var(--accent)'}:{}} onClick={()=>setFilter('all')}>まとめて表示</button>
+      </div>
+      <div style={{display:'flex',gap:8,alignItems:'center',marginBottom:4,flexWrap:'wrap'}}>
+        <span style={{fontSize:12,color:'var(--t2)'}}>日付1:</span>
+        <input type="date" value={pick1} onChange={e=>{setPick1(e.target.value);setFilter('pick1');}} style={{fontSize:13,padding:'6px 10px',border:'1px solid var(--b2)',borderRadius:'var(--rs)',background:filter==='pick1'?'var(--abg)':'var(--surface)',color:'var(--text)',outline:'none'}}/>
+        <span style={{fontSize:12,color:'var(--t2)'}}>日付2:</span>
+        <input type="date" value={pick2} onChange={e=>{setPick2(e.target.value);setFilter('pick2');}} style={{fontSize:13,padding:'6px 10px',border:'1px solid var(--b2)',borderRadius:'var(--rs)',background:filter==='pick2'?'var(--abg)':'var(--surface)',color:'var(--text)',outline:'none'}}/>
       </div>
     </div>
     <div style={{fontSize:12,color:'var(--t2)',marginBottom:8}}>{list.length}件</div>
     {list.length===0
       ? <p className="empty">該当するデータはありません</p>
-      : <IteroWeekGrid list={list} updReady={updReady} dayLabel={dayLabel}/>
+      : <IteroWeekGrid list={list} updReady={updReady} dayLabel={dayLabel} db={db} setDb={setDb} saveLocal={saveLocal}/>
     }
   </div>;
 }
