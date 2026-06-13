@@ -421,6 +421,13 @@ function MikTab({db,setDb,patients,setPatients,saveLocal,setTab,setInputInit,set
 
 // ---- InpTab ----
 function InpTab({db,setDb,patients,setPatients,saveLocal,initData,fromMik,setFromMik}){
+  const [showMikAlert,setShowMikAlert]=useState(false);
+  const mikCount=db.filter(r=>r.chk_mikiroku).length;
+
+  useEffect(()=>{
+    if(mikCount>0) setShowMikAlert(true);
+  },[]);
+
   const [pid,setPid]=useState('');
   const [name,setName]=useState('');
   const [date,setDate]=useState(today());
@@ -982,10 +989,7 @@ function DCTab({db,updRec,setDb,saveLocal}){
                     {needsK?<input type="checkbox" checked={!!r.checks[k]} onChange={e=>updChk(r.id,k,e.target.checked)} style={{width:16,height:16,accentColor:'var(--green)',cursor:'pointer'}}/>:<span style={{color:'var(--t3)',fontSize:11}}>—</span>}
                   </td>)}
                   <td style={{padding:'8px',textAlign:'center'}}>
-                    {adminMode
-                      ? <input type="checkbox" checked={!!r.chk_datachecked} onChange={e=>updDC(r.id,e.target.checked)} style={{width:16,height:16,accentColor:'var(--accent)',cursor:'pointer'}}/>
-                      : <span style={{fontSize:14}}>{r.chk_datachecked?'✅':'⬜'}</span>
-                    }
+                    <input type="checkbox" checked={!!r.chk_datachecked} onChange={e=>updDC(r.id,e.target.checked)} style={{width:16,height:16,accentColor:'var(--accent)',cursor:'pointer'}}/>
                   </td>
                   {adminMode&&<td style={{padding:'6px 8px',textAlign:'center'}}>
                     <button className="btn btn-d" onClick={()=>{if(!confirm(r.patient_name+'のデータを削除しますか？\n\nこの操作は取り消せません。'))return;const n=db.filter(x=>x.id!==r.id);setDb(n);saveLocal(n);sbFetch('records?id=eq.'+r.id,'DELETE').catch(()=>{});}}>削除</button>
