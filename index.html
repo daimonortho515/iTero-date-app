@@ -335,10 +335,17 @@ function App(){
       <div className="main-tabs">{TABS.map(t=><button key={t.id} className={(t.cls||'')+(tab===t.id?' on':'')} onClick={()=>switchTab(t.id)}>{t.label}</button>)}</div>
       {showReport&&<ReportModal onClose={()=>setShowReport(false)}/>}
       {showMikAlert&&<div style={{position:'fixed',inset:0,background:'rgba(0,0,0,0.5)',zIndex:999,display:'flex',alignItems:'center',justifyContent:'center',padding:20}}>
-        <div style={{background:'var(--surface)',borderRadius:'var(--r)',padding:24,maxWidth:320,width:'100%',textAlign:'center',boxShadow:'0 4px 24px rgba(0,0,0,0.2)'}}>
+        <div style={{background:'var(--surface)',borderRadius:'var(--r)',padding:24,maxWidth:360,width:'100%',textAlign:'center',boxShadow:'0 4px 24px rgba(0,0,0,0.2)'}}>
           <div style={{fontSize:32,marginBottom:12}}>⚠️</div>
-          <div style={{fontSize:16,fontWeight:700,color:'var(--rt)',marginBottom:8}}>未記入が{db.filter(r=>r.chk_mikiroku).length}件あります</div>
-          <div style={{fontSize:13,color:'var(--t2)',marginBottom:20}}>未記入タブで確認してください</div>
+          <div style={{fontSize:16,fontWeight:700,color:'var(--rt)',marginBottom:12}}>未記入が{db.filter(r=>r.chk_mikiroku).length}件あります</div>
+          <div style={{textAlign:'left',maxHeight:200,overflowY:'auto',marginBottom:16,background:'var(--s2)',borderRadius:'var(--rs)',padding:'8px 12px'}}>
+            {db.filter(r=>r.chk_mikiroku).map(r=>
+              <div key={r.id} style={{display:'flex',justifyContent:'space-between',alignItems:'center',padding:'6px 0',borderBottom:'1px solid var(--border)',fontSize:13}}>
+                <span style={{fontWeight:600}}>{r.patient_name}</span>
+                <StaffBadge staff={r.staff}/>
+              </div>
+            )}
+          </div>
           <div style={{display:'flex',gap:10}}>
             <button className="btn btn-p" style={{flex:1,fontSize:13}} onClick={()=>{setShowMikAlert(false);setTab('mik');}}>未記入を確認</button>
             <button className="btn" style={{flex:1,fontSize:13}} onClick={()=>setShowMikAlert(false)}>このまま入力</button>
@@ -378,12 +385,12 @@ function MikTab({db,setDb,patients,setPatients,saveLocal,setTab,setInputInit,set
     if(!pid||!name){setMsg({err:'IDと名前は必須です'});return;}
 
     setMsg({info:'保存中...'});
-    const body={date:today(),patient_id:pid,patient_name:name,staff,cats:'[]',techs:'[]',old_flag:false,note:'未記入',setdate:null,chk_seimitsu:false,chk_saishuu:false,chk_isogu:false,chk_mikiroku:true,chk_suzuki:false,chk_mokei:false,chk_tochaku:false,chk_kensashin:false,chk_orthocom:false,chk_backup:false,chk_datachecked:false};
+    const body={date:scanDate,patient_id:pid,patient_name:name,staff,cats:'[]',techs:'[]',old_flag:false,note:'未記入',setdate:null,chk_seimitsu:false,chk_saishuu:false,chk_isogu:false,chk_mikiroku:true,chk_suzuki:false,chk_mokei:false,chk_tochaku:false,chk_kensashin:false,chk_orthocom:false,chk_backup:false,chk_datachecked:false};
     const r=await sbFetch('records','POST',body);
     const nr=mapRec(r?r[0]:{...body,id:Date.now(),tc:{},cats:JSON.parse(body.cats||'[]'),techs:JSON.parse(body.techs||'[]')});
     if(!patients[pid]){await sbFetch('patients','POST',{patient_id:pid,patient_name:name});setPatients(p=>({...p,[pid]:name}));}
     const n=[nr,...db].sort(function(a,b){ if(!a.date&&!b.date)return 0; if(!a.date)return 1; if(!b.date)return -1; return b.date.localeCompare(a.date); }); setDb(n);saveLocal(n);
-    setMsg({ok:'登録しました！'});setPid('');setName('');setStaff('');setAtag('');
+    setMsg({ok:'登録しました！'});setPid('');setName('');setStaff('');setAtag('');setScanDate(today());
     setTimeout(()=>setMsg(null),3000);
   };
 
@@ -404,11 +411,17 @@ function MikTab({db,setDb,patients,setPatients,saveLocal,setTab,setInputInit,set
         <div className="f" style={{width:130,marginBottom:0}}><label>患者ID</label><input value={pid} onChange={e=>{setPid(e.target.value);lookup(e.target.value);}} placeholder="21245"/></div>
         <div className="f" style={{flex:1,marginBottom:0}}><label>患者名 <span className="atag">{atag}</span></label><input value={name} onChange={e=>setName(e.target.value)} placeholder="IDで自動入力"/></div>
       </div>
-      <div className="f" style={{marginBottom:10}}>
-        <label>担当</label>
-        <select value={staff} onChange={e=>setStaff(e.target.value)}>
-          <option value="">選択</option>{STAFF.map(s=><option key={s}>{s}</option>)}
-        </select>
+      <div className="row2" style={{marginBottom:10}}>
+        <div className="f" style={{marginBottom:0}}>
+          <label>データ取得日</label>
+          <input type="date" value={scanDate} onChange={e=>setScanDate(e.target.value)}/>
+        </div>
+        <div className="f" style={{marginBottom:0}}>
+          <label>担当</label>
+          <select value={staff} onChange={e=>setStaff(e.target.value)}>
+            <option value="">選択</option>{STAFF.map(s=><option key={s}>{s}</option>)}
+          </select>
+        </div>
       </div>
       {msg&&<div className={"al "+(msg.ok?'al-ok':msg.err?'al-err':'')} style={msg.info?{background:'var(--s2)',color:'var(--t2)'}:{}}>{msg.ok||msg.err||msg.info}</div>}
       <button className="btn" style={{width:'100%',background:'var(--red)',color:'#fff',borderColor:'var(--red)'}} onClick={save}>未記入として登録</button>
