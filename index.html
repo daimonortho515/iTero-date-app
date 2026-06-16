@@ -402,7 +402,7 @@ function MikTab({db,setDb,patients,setPatients,saveLocal,setTab,setInputInit,set
     switchTab('inp');
   };
 
-  const list=db.filter(r=>r.chk_mikiroku);
+  const list=db.filter(r=>r.chk_mikiroku&&!r.hidden);
   return <div>
     <div className="card" style={{borderColor:'#fca5a5',background:'#fff5f5'}}>
       <div className="ct" style={{color:'var(--rt)'}}>⚠️ 記録未記入 — 簡易登録</div>
