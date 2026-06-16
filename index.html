@@ -238,6 +238,14 @@ function App(){
   const [db,setDb]=useState([]);
   const [patients,setPatients]=useState({});
   const [tab,setTab]=useState('mik');
+  const [showMikAlert,setShowMikAlert]=useState(false);
+  const switchTab=(t)=>{
+    if(t==='inp'){
+      const mikCount=db.filter(r=>r.chk_mikiroku).length;
+      if(mikCount>0) setShowMikAlert(true);
+    }
+    setTab(t);
+  };
   const [syncing,setSyncing]=useState(false);
   const [loading,setLoading]=useState(true);
   const [inputInit,setInputInit]=useState(null);
@@ -324,8 +332,19 @@ function App(){
           </div>
         }
       </div>}
-      <div className="main-tabs">{TABS.map(t=><button key={t.id} className={(t.cls||'')+(tab===t.id?' on':'')} onClick={()=>setTab(t.id)}>{t.label}</button>)}</div>
+      <div className="main-tabs">{TABS.map(t=><button key={t.id} className={(t.cls||'')+(tab===t.id?' on':'')} onClick={()=>switchTab(t.id)}>{t.label}</button>)}</div>
       {showReport&&<ReportModal onClose={()=>setShowReport(false)}/>}
+      {showMikAlert&&<div style={{position:'fixed',inset:0,background:'rgba(0,0,0,0.5)',zIndex:999,display:'flex',alignItems:'center',justifyContent:'center',padding:20}}>
+        <div style={{background:'var(--surface)',borderRadius:'var(--r)',padding:24,maxWidth:320,width:'100%',textAlign:'center',boxShadow:'0 4px 24px rgba(0,0,0,0.2)'}}>
+          <div style={{fontSize:32,marginBottom:12}}>⚠️</div>
+          <div style={{fontSize:16,fontWeight:700,color:'var(--rt)',marginBottom:8}}>未記入が{db.filter(r=>r.chk_mikiroku).length}件あります</div>
+          <div style={{fontSize:13,color:'var(--t2)',marginBottom:20}}>未記入タブで確認してください</div>
+          <div style={{display:'flex',gap:10}}>
+            <button className="btn btn-p" style={{flex:1,fontSize:13}} onClick={()=>{setShowMikAlert(false);setTab('mik');}}>未記入を確認</button>
+            <button className="btn" style={{flex:1,fontSize:13}} onClick={()=>setShowMikAlert(false)}>このまま入力</button>
+          </div>
+        </div>
+      </div>}
       <div className="content">
         {tab==='mik'  && <MikTab db={db} setDb={setDb} patients={patients} setPatients={setPatients} saveLocal={saveLocal} setTab={setTab} setInputInit={setInputInit} setFromMik={setFromMik}/>}
         {tab==='iteroweek'&&<IteroWeekTab db={db} updRec={updRec} setDb={setDb} saveLocal={saveLocal}/>}
@@ -373,7 +392,7 @@ function MikTab({db,setDb,patients,setPatients,saveLocal,setTab,setInputInit,set
     setFromMik(true);
     const n=db.filter(x=>x.id!==r.id); setDb(n);saveLocal(n);
     sbFetch('records?id=eq.'+r.id,'DELETE');
-    setTab('inp');
+    switchTab('inp');
   };
 
   const list=db.filter(r=>r.chk_mikiroku);
@@ -421,13 +440,6 @@ function MikTab({db,setDb,patients,setPatients,saveLocal,setTab,setInputInit,set
 
 // ---- InpTab ----
 function InpTab({db,setDb,patients,setPatients,saveLocal,initData,fromMik,setFromMik}){
-  const [showMikAlert,setShowMikAlert]=useState(false);
-  const mikCount=db.filter(r=>r.chk_mikiroku).length;
-
-  useEffect(()=>{
-    if(mikCount>0) setShowMikAlert(true);
-  },[]);
-
   const [pid,setPid]=useState('');
   const [name,setName]=useState('');
   const [date,setDate]=useState(today());
