@@ -404,7 +404,7 @@ function MikTab({db,setDb,patients,setPatients,saveLocal,setTab,switchTab,setInp
   const goDetail=(r)=>{
     setInputInit({pid:r.patient_id,name:r.patient_name,date:r.date,staff:r.staff||'',wasMikiroku:true,mikId:r.id});
     setFromMik(true);
-    switchTab('inp');
+    setTab('inp');
   };
 
   const list=db.filter(r=>r.chk_mikiroku&&!r.hidden);
