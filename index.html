@@ -239,6 +239,12 @@ function App(){
   const [patients,setPatients]=useState({});
   const [tab,setTab]=useState('inp');
   const [showMikAlert,setShowMikAlert]=useState(false);
+  const pickMikPatient=(r)=>{
+    setInputInit({pid:r.patient_id,name:r.patient_name,date:r.date,staff:r.staff||'',wasMikiroku:true,mikId:r.id});
+    setFromMik(true);
+    setShowMikAlert(false);
+    setTab('inp');
+  };
   const switchTab=(t)=>{
     if(t==='inp'){
       const mikCount=db.filter(r=>r.chk_mikiroku&&!r.hidden).length;
@@ -343,10 +349,11 @@ function App(){
       {showMikAlert&&<div style={{position:'fixed',inset:0,background:'rgba(0,0,0,0.5)',zIndex:999,display:'flex',alignItems:'center',justifyContent:'center',padding:20}}>
         <div style={{background:'var(--surface)',borderRadius:'var(--r)',padding:24,maxWidth:360,width:'100%',textAlign:'center',boxShadow:'0 4px 24px rgba(0,0,0,0.2)'}}>
           <div style={{fontSize:32,marginBottom:12}}>⚠️</div>
-          <div style={{fontSize:16,fontWeight:700,color:'var(--rt)',marginBottom:12}}>未記入が{db.filter(r=>r.chk_mikiroku&&!r.hidden).length}件あります</div>
+          <div style={{fontSize:16,fontWeight:700,color:'var(--rt)',marginBottom:4}}>未記入が{db.filter(r=>r.chk_mikiroku&&!r.hidden).length}件あります</div>
+          <div style={{fontSize:11,color:'var(--t2)',marginBottom:10}}>タップすると詳細入力に進みます</div>
           <div style={{textAlign:'left',maxHeight:200,overflowY:'auto',marginBottom:16,background:'var(--s2)',borderRadius:'var(--rs)',padding:'8px 12px'}}>
             {db.filter(r=>r.chk_mikiroku&&!r.hidden).map(r=>
-              <div key={r.id} style={{display:'flex',justifyContent:'space-between',alignItems:'center',padding:'6px 0',borderBottom:'1px solid var(--border)',fontSize:13}}>
+              <div key={r.id} onClick={()=>pickMikPatient(r)} style={{display:'flex',justifyContent:'space-between',alignItems:'center',padding:'8px 4px',borderBottom:'1px solid var(--border)',fontSize:13,cursor:'pointer',borderRadius:'var(--rs)'}}>
                 <span style={{fontWeight:600}}>{r.patient_name}</span>
                 <StaffBadge staff={r.staff}/>
               </div>
