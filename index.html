@@ -359,7 +359,7 @@ function App(){
         </div>
       </div>}
       <div className="content">
-        {tab==='mik'  && <MikTab db={db} setDb={setDb} patients={patients} setPatients={setPatients} saveLocal={saveLocal} setTab={setTab} setInputInit={setInputInit} setFromMik={setFromMik}/>}
+        {tab==='mik'  && <MikTab db={db} setDb={setDb} patients={patients} setPatients={setPatients} saveLocal={saveLocal} setTab={setTab} switchTab={switchTab} setInputInit={setInputInit} setFromMik={setFromMik}/>}
         {tab==='iteroweek'&&<IteroWeekTab db={db} updRec={updRec} setDb={setDb} saveLocal={saveLocal}/>}
         {tab==='today'&& <TodayTab db={db} updRec={updRec}/>}
         {tab==='inp'  && <InpTab db={db} setDb={setDb} patients={patients} setPatients={setPatients} saveLocal={saveLocal} initData={inputInit} fromMik={fromMik} setFromMik={setFromMik}/>}
@@ -373,7 +373,7 @@ function App(){
 }
 
 // ---- MikTab ----
-function MikTab({db,setDb,patients,setPatients,saveLocal,setTab,setInputInit,setFromMik}){
+function MikTab({db,setDb,patients,setPatients,saveLocal,setTab,switchTab,setInputInit,setFromMik}){
   const [pid,setPid]=useState('');
   const [name,setName]=useState('');
   const [staff,setStaff]=useState('');
