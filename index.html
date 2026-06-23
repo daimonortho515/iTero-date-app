@@ -563,23 +563,27 @@ function InpTab({db,setDb,patients,setPatients,saveLocal,initData,fromMik,setFro
 const SUBS=['すべて','技工物(院外)','技工物(院内)','精密検査','最終検査','再iTero','追加アライナー'];
 
 function RecTab({db,updRec,setDb,saveLocal}){
-  const [sub,setSub]=useState('技工物(院外)');
+  const [subs,setSubs]=useState(['技工物(院外)']);
   const [view,setView]=useState('list');
   const [q,setQ]=useState('');
   const [fSt,setFSt]=useState('');
   const [F,setF]=useState({});
   const togF=k=>setF(f=>({...f,[k]:!f[k]}));
 
+  const sub=subs.includes('すべて')?'すべて':subs.length===1?subs[0]:'複数';
   const matchSub=r=>{
     if(r.chk_mikiroku||isRecordDone(r)||r.hidden)return false;
     if(sub==='すべて') return true;
-    if(sub==='技工物(院外)') return r.cats.includes('技工物')&&r.techs.some(t=>!INHOUSE.includes(t));
-    if(sub==='技工物(院内)') return r.cats.includes('技工物')&&r.techs.some(t=>INHOUSE.includes(t))&&!r.techs.some(t=>!INHOUSE.includes(t));
-    if(sub==='精密検査') return r.checks['精密検査'];
-    if(sub==='最終検査') return r.checks['最終検査'];
-    if(sub==='再iTero') return r.cats.includes('再iTero');
-    if(sub==='追加アライナー') return r.cats.includes('追加アライナー');
-    return true;
+    return subs.some(s=>{
+      if(s==='技工物(院外)') return r.cats.includes('技工物')&&r.techs.some(t=>!INHOUSE.includes(t));
+      if(s==='技工物(院内)') return r.cats.includes('技工物')&&r.techs.some(t=>INHOUSE.includes(t))&&!r.techs.some(t=>!INHOUSE.includes(t));
+      if(s==='精密検査') return r.checks['精密検査'];
+      if(s==='最終検査') return r.checks['最終検査'];
+      if(s==='再iTero') return r.cats.includes('再iTero');
+      if(s==='追加アライナー') return r.cats.includes('追加アライナー');
+      if(s==='その他') return r.cats.includes('その他');
+      return false;
+    });
   };
 
   const weekRange=()=>{ const now=new Date(),day=now.getDay(),mon=new Date(now); mon.setDate(now.getDate()-(day===0?6:day-1)); const sun=new Date(mon); sun.setDate(mon.getDate()+6); return{s:mon.toISOString().slice(0,10),e:sun.toISOString().slice(0,10)}; };
@@ -607,17 +611,39 @@ function RecTab({db,updRec,setDb,saveLocal}){
     if(F.ks_suz&&r.checks['チェック鈴木'])return false;
     return true;
   });
-  if(F.sort)list=[...list].sort((a,b)=>{ if(!a.setdate&&!b.setdate)return 0;if(!a.setdate)return 1;if(!b.setdate)return-1;return a.setdate.localeCompare(b.setdate); });
+  const isTechOnly=subs.every(s=>s==='技工物(院外)'||s==='技工物(院内)');
+  if(isTechOnly){
+    list=[...list].sort((a,b)=>{ if(!a.date&&!b.date)return 0;if(!a.date)return 1;if(!b.date)return-1;return b.date.localeCompare(a.date); });
+  } else if(F.sort){
+    list=[...list].sort((a,b)=>{ if(!a.setdate&&!b.setdate)return 0;if(!a.setdate)return 1;if(!b.setdate)return-1;return a.setdate.localeCompare(b.setdate); });
+  }
 
   const updTC=(id,k,v,extra)=>{ const r=db.find(x=>x.id===id);if(!r)return;const tc={...r.tc,[k]:v,...(extra||{})};updRec(id,{tc});sbFetch('records?id=eq.'+id,'PATCH',{tech_checks:JSON.stringify(tc)}); };
   const updChk=(id,k,v)=>{ const r=db.find(x=>x.id===id);if(!r)return;updRec(id,{checks:{...r.checks,[k]:v}});const col=CHK_COL[k];if(col){const p={};p[col]=v;sbFetch('records?id=eq.'+id,'PATCH',p);} };
   const updField=(id,f,v)=>{ updRec(id,{[f]:v});const p={};p[f]=v;sbFetch('records?id=eq.'+id,'PATCH',p); };
 
   const FB=({k,label,os})=>{ const on=F[k]; return <button className={"fb"+(on?' on':'')} style={on?{}:(os||{})} onClick={()=>togF(k)}>{label}</button>; };
-  const isKanSub=sub==='技工物(院外)'||sub==='技工物(院内)'||sub==='再iTero'||sub==='追加アライナー';
+  const isKanSub=subs.some(s=>s==='技工物(院外)'||s==='技工物(院内)'||s==='再iTero'||s==='追加アライナー')&&subs.length===1;
 
   return <div>
-    <div className="stabs">{SUBS.map(s=><button key={s} className={"stab"+(sub===s?' on':'')} onClick={()=>{setSub(s);setView('list');setF({});}}>{s}</button>)}</div>
+    <div className="stabs">{SUBS.map(s=>{
+        const isOn=subs.includes(s);
+        const isTechBtn=s==='技工物(院外)'||s==='技工物(院内)';
+        return <button key={s} className={"stab"+(isOn?' on':'')} onClick={()=>{
+          if(s==='すべて'){setSubs(['すべて']);setView('list');setF({});return;}
+          if(isTechBtn){
+            // 技工物ボタンは複数選択可能
+            setSubs(prev=>{
+              const filtered=prev.filter(x=>x!=='すべて');
+              if(filtered.includes(s)) return filtered.length>1?filtered.filter(x=>x!==s):filtered;
+              return [...filtered.filter(x=>x!=='すべて'), s];
+            });
+            setView('list');setF({});
+          } else {
+            setSubs([s]);setView('list');setF({});
+          }
+        }}>{s}</button>;
+      })}</div>
     <div style={{display:'flex',gap:8,marginBottom:10,flexWrap:'wrap'}}>
       <input value={q} onChange={e=>setQ(e.target.value)} placeholder="患者名・IDで検索..." style={{flex:1,minWidth:110,fontSize:13,padding:'8px 10px',border:'1px solid var(--b2)',borderRadius:'var(--rs)',background:'var(--surface)',color:'var(--text)',outline:'none'}}/>
       <select value={fSt} onChange={e=>setFSt(e.target.value)} style={{fontSize:13,padding:'8px',border:'1px solid var(--b2)',borderRadius:'var(--rs)',background:'var(--surface)',color:'var(--text)',WebkitAppearance:'none',outline:'none'}}>
@@ -625,7 +651,7 @@ function RecTab({db,updRec,setDb,saveLocal}){
       </select>
     </div>
     {isKanSub&&<div className="view-toggle"><button className={"vbtn"+(view==='list'?' on':'')} onClick={()=>setView('list')}>📋 一覧</button><button className={"vbtn"+(view==='kanban'?' on':'')} onClick={()=>setView('kanban')}>📊 カンバン</button></div>}
-    {(sub==='技工物(院外)'||sub==='技工物(院内)')&&view==='list'&&<div className="fbtns">
+    {subs.length===1&&(subs[0]==='技工物(院外)'||subs[0]==='技工物(院内)')&&view==='list'&&<div className="fbtns">
       <FB k="sort" label="📅 セット日順"/><FB k="week" label="📌 今週"/><FB k="iso" label="🚨 急ぎ" os={{color:'var(--ot)',borderColor:'#fed7aa'}}/>
       <FB k="mokei" label="📦 模型未" os={{color:'var(--rt)',borderColor:'#fca5a5'}}/><FB k="souchi" label="🔧 装置未" os={{color:'var(--pt)',borderColor:'#c4b5fd'}}/><FB k="mizen" label="📮 未発注" os={{color:'var(--amt)',borderColor:'#fde68a'}}/>
         <FB k="dekisidai" label="📞 出来次第" os={{color:'var(--pt)',borderColor:'#c4b5fd'}}/>
@@ -633,8 +659,8 @@ function RecTab({db,updRec,setDb,saveLocal}){
     {sub==='再iTero'&&view==='list'&&<div className="fbtns"><FB k="it_miz" label="📮 未発注" os={{color:'var(--rt)',borderColor:'#fca5a5'}}/><FB k="it_chu" label="🔄 発注済み" os={{color:'var(--amt)',borderColor:'#fde68a'}}/><FB k="it_ok" label="✅ 到着" os={{color:'var(--gt)',borderColor:'#bbf7d0'}}/></div>}
     {sub==='追加アライナー'&&view==='list'&&<div className="fbtns"><FB k="ar_miz" label="📋 未作成" os={{color:'var(--rt)',borderColor:'#fca5a5'}}/><FB k="ar_inc" label="👨‍⚕️ 院長作成中" os={{color:'var(--amt)',borderColor:'#fde68a'}}/><FB k="ar_ok" label="✅ 到着" os={{color:'var(--gt)',borderColor:'#bbf7d0'}}/><FB k="ar_ren" label="📞 患者連絡済み" os={{color:'var(--pt)',borderColor:'#c4b5fd'}}/></div>}
     {(sub==='精密検査'||sub==='最終検査')&&<div className="fbtns"><FB k="ks_send" label="📤 送信未" os={{color:'var(--rt)',borderColor:'#fca5a5'}}/><FB k="ks_ortho" label="💻 orthocom未" os={{color:'var(--rt)',borderColor:'#fca5a5'}}/><FB k="ks_bk" label="💾 backup未" os={{color:'var(--rt)',borderColor:'#fca5a5'}}/><FB k="ks_suz" label="✅ 確認未" os={{color:'var(--amt)',borderColor:'#fde68a'}}/></div>}
-    {view==='kanban'&&sub==='技工物(院外)'&&<GaikouKanban list={list} updTC={updTC}/>}
-    {view==='kanban'&&sub==='技工物(院内)'&&<InhouKanban list={list} updTC={updTC}/>}
+    {view==='kanban'&&subs.length===1&&subs[0]==='技工物(院外)'&&<GaikouKanban list={list} updTC={updTC}/>}
+    {view==='kanban'&&subs.length===1&&subs[0]==='技工物(院内)'&&<InhouKanban list={list} updTC={updTC}/>}
     {view==='kanban'&&sub==='追加アライナー'&&<ArKanban list={list} updTC={updTC}/>}
     {view==='kanban'&&sub==='再iTero'&&<IteroKanban list={list} updTC={updTC}/>}
     {view==='list'&&(list.length===0?<p className="empty">該当なし</p>:
@@ -766,7 +792,7 @@ function RCard({r,sub,db,setDb,saveLocal,updTC,updChk,updField}){
   const kkeys=(sub==='精密検査'||sub==='最終検査')?KENSA_CHK:[];
   const done=kkeys.filter(k=>r.checks[k]).length;
   const tc=r.tc||{};
-  const isTech=sub==='技工物(院外)'||sub==='技工物(院内)'||sub==='すべて';
+  const isTech=sub==='技工物(院外)'||sub==='技工物(院内)'||sub==='すべて'||sub==='複数';
   return <div className={"rc"+(r.chk_isogu?' icard':'')}>
     <div style={{display:'flex',justifyContent:'space-between',alignItems:'flex-start'}}>
       <div style={{flex:1}}>
@@ -915,8 +941,8 @@ function DoneTab({db,setDb,saveLocal}){
   const [q,setQ]=useState('');
   const matchDone=r=>{
     if(sub==='すべて')return true;
-    if(sub==='技工物(院外)')return r.cats.includes('技工物')&&r.techs.some(t=>!INHOUSE.includes(t));
-    if(sub==='技工物(院内)')return r.cats.includes('技工物')&&r.techs.some(t=>INHOUSE.includes(t));
+    if(sub==='技工物')return r.cats.includes('技工物');
+
     if(sub==='精密検査')return r.checks['精密検査'];
     if(sub==='最終検査')return r.checks['最終検査'];
     if(sub==='再iTero')return r.cats.includes('再iTero');
